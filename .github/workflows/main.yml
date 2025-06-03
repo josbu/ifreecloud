@@ -1,32 +1,69 @@
-name: FreeCloud Auto Renew
+# 工作流的名称，会在 GitHub Actions 页面显示
+name: FreeCloud Auto Renew - Mon & Thu
 
+# 定义何时触发工作流
 on:
+  # schedule 字段用于设置定时触发
   schedule:
-    #- cron: '30 2 * * *'  # 每天 UTC 时间 2:30（北京时间 10:30）运行一次
-    - cron: "0 0 */2 * *"
-  workflow_dispatch:       # 支持手动触发
+    # cron 表达式定义了执行频率。
+    # '30 0 * * 1,4' 表示：
+    # - 30: 每小时的第 30 分钟 (0-59)
+    # - 0: 每天的第 0 小时 (午夜 0点，UTC 时间) (0-23)
+    # - *: 每月中的每一天 (1-31)
+    # - *: 每年的每一个月 (1-12)
+    # - 1,4: 每周的星期几 (0-6，0 或 7 是星期日，1 是星期一，2 是星期二，3 是星期三，4 是星期四)
+    #   使用逗号 (,) 可以指定多个值。
+    # 所以，这个表达式的意思是：每周一和每周四的 UTC 时间 00:30 执行。
+    # 如果你想改成北京时间每周一和每周四早上 8:30 执行，表达式保持不变 (因为北京时间比UTC早8小时，08:30是UTC的00:30)。
+    # 更多 Cron 表达式信息可以参考：https://crontab.guru/
+    - cron: '30 0 * * 1,4'
 
+  # workflow_dispatch 允许你从 GitHub 仓库的 Actions 页面手动触发此工作流
+  workflow_dispatch:
+
+# 定义工作流中的作业 (jobs)
 jobs:
-  renew:
+  # 这是一个名为 'renew_server' 的作业
+  renew_server:
+    # 指定作业运行的环境。ubuntu-latest 是一个常用的 Linux 虚拟机环境。
     runs-on: ubuntu-latest
 
+    # 定义作业中要执行的步骤 (steps)
     steps:
+      # 第一个步骤：检出你的代码仓库
       - name: Checkout Repository
-        uses: actions/checkout@v3
+        # 使用 actions/checkout@v4 action 来获取仓库代码
+        uses: actions/checkout@v4
 
-      - name: Set Up Python
+      # 第二个步骤：设置 Python 环境
+      - name: Set up Python
+        # 使用 actions/setup-python@v5 action 来安装 Python
         uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          # 指定要使用的 Python 版本。
+          # '3.x' 表示最新的 Python 3 版本，你也可以指定具体版本，例如 '3.9', '3.10' 等。
+          python-version: '3.x'
 
-      - name: Install dependencies
-        run: pip install cloudscraper
+      # 第三个步骤：安装 Python 脚本所需的依赖库
+      - name: Install Python dependencies
+        # 'run' 关键字用于执行命令行命令
+        run: |
+          # 升级 pip 工具
+          python -m pip install --upgrade pip
+          # 安装你的 login.py 脚本中使用的 cloudscraper 和 requests 库
+          pip install cloudscraper requests
 
-      - name: Run renew script
+      # 第四个步骤：运行你的 FreeCloud 登录和续费脚本
+      - name: Run FreeCloud Login and Renew Script
+        # 执行 login.py 脚本
+        run: python3 login.py
+        # 'env' 关键字用于为当前步骤设置环境变量
         env:
+          # 从 GitHub Secrets 获取敏感信息，并作为环境变量传递给脚本
+          # 例如，脚本中的 os.getenv("FC_USERNAME") 会读取到 ${{ secrets.FC_USERNAME }} 的值
           FC_USERNAME: ${{ secrets.FC_USERNAME }}
           FC_PASSWORD: ${{ secrets.FC_PASSWORD }}
-          FC_MACHINE_ID: ${{ secrets.FC_MACHINE_ID }}
           TG_BOT_TOKEN: ${{ secrets.TG_BOT_TOKEN }}
-          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}         
-        run: python3 login.py
+          TG_CHAT_ID: ${{ secrets.TG_CHAT_ID }}
+          # 从 GitHub Variables 获取非敏感信息，并作为环境变量传递给脚本
+          FC_MACHINE_ID: ${{ vars.FC_MACHINE_ID }}
